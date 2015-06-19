@@ -9,7 +9,7 @@ This utility only works on Linux (including OpenWrt). For Windows download and i
 Whsniff reads the packets from TI CC2531 USB dongle with [`sniffer_fw_cc2531` firmware](http://www.ti.com/tool/packet-sniffer), converts to the PCAP format and writes to the standard output(stdout).
 
 
-##### Building
+##### Building (Linux)
 
 * Install `libusb-1.0-0-dev`:
 ```sh
@@ -21,6 +21,21 @@ $ sudo apt-get install libusb-1.0-0-dev
 $ cd path/to/whsniff/Makefile
 $ make release
 ```
+
+
+##### Building (OpenWrt)
+
+* Install [OpenWrt buildroot](http://wiki.openwrt.org/doc/howto/buildroot.exigence).
+* Add the following line to the `feeds.conf.default` in the OpenWrt buildroot:
+```sh
+src-git homewsn https://github.com/homewsn/homewsn.openwrt.packages.git
+```
+* This feed should be included and enabled by default in the OpenWrt buildroot. To install all its package definitions, run:
+```sh
+$ ./scripts/feeds update homewsn
+$ ./scripts/feeds install -a -p homewsn
+```
+* The packages should now appear in menuconfig. You can find whsniff in the Network menu.
 
 
 ##### How to use (Locally)
