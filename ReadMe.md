@@ -16,10 +16,12 @@ Whsniff reads the packets from TI CC2531 USB dongle with [`sniffer_fw_cc2531` fi
 $ sudo apt-get install libusb-1.0-0-dev
 ```
 
-* Build release version:
+* Download [the latest release](https://github.com/homewsn/whsniff/releases) in tarball from github and untar it. Then build and install whsniff.
 ```sh
-$ cd path/to/whsniff/Makefile
-$ make release
+$ curl -L https://github.com/homewsn/whsniff/archive/v1.1.tar.gz | tar zx
+$ cd whsniff-1.1
+$ make
+$ sudo make install
 ```
 
 
