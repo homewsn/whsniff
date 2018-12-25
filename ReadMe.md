@@ -15,7 +15,6 @@ Whsniff reads the packets from TI CC2531 USB dongle with [`sniffer_fw_cc2531` fi
 ```sh
 $ sudo apt-get install libusb-1.0-0-dev
 ```
-
 * Download [the latest release](https://github.com/homewsn/whsniff/releases) in tarball from github and untar it. Then build and install whsniff.
 ```sh
 $ curl -L https://github.com/homewsn/whsniff/archive/v1.1.tar.gz | tar zx
@@ -43,38 +42,37 @@ $ ./scripts/feeds install -a -p homewsn
 ##### How to use (Locally)
 
 * Connect CC2531 USB dongle to your Linux PC.
-
 * Open a terminal session on the desktop where you have Wireshark installed and enter the following commands:
 ```sh
 $ wireshark -k -i <( path/to/whsniff -c channel_number )
 or
-$ path/to/whsniff -c 25 | wireshark -k -i -
+$ path/to/whsniff -c channel_number | wireshark -k -i -
 or
 $ mkfifo /tmp/pipes/whsniff
-$ path/to/whsniff -c 25 > /tmp/pipes/whsniff
+$ path/to/whsniff -c channel_number > /tmp/pipes/whsniff
 ```
-
-* You can also save the output to a file to analyze it later using wireshark:
+* You can also save the output to a file to analyze it later using Wireshark:
 ```sh
-$ path/to/whsniff -c 25 > filename.pcap
+$ path/to/whsniff -c channel_number > filename.pcap
 ```
-
+* If you see something like `libusb: error [_get_usbfs_fd] libusb couldn't open USB device /dev/bus/usb/001/006: Permission denied` you can give the write permission for everyone (or use another solution):
+```sh
+$ sudo chmod a+w /dev/bus/usb/001/006
+```
 
 ##### How to use (Remotely)
 
 * Connect CC2531 USB dongle to remote Linux PC or OpenWrt device, then start whsniff remotely with ssh from the desktop where you have Wireshark installed.
-
 * For Linux open a terminal session on the desktop and enter the following command:
 ```sh
-$ ssh root@192.168.1.202 "whsniff -c 25" | wireshark -k -i -
+$ ssh root@192.168.1.202 "whsniff -c 18" | wireshark -k -i -
 ```
-where `192.168.1.202` is an IP address of the computer where dongle is connected.
-
+where `192.168.1.202` is an IP address of the computer where dongle is connected and `18` is a channel number.
 * For Windows install PuTTY with extension `plink.exe` from [PuTTY Download Page](http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html), then open a command prompt window and enter the following command:
 ```sh
-> "C:\Program Files\PuTTY\plink.exe" -ssh -pw password root@192.168.1.202 whsniff -c 25 | "C:\Program Files\Wireshark\wireshark.exe" -k -i -
+> "C:\Program Files\PuTTY\plink.exe" -ssh -pw password root@192.168.1.202 whsniff -c 18 | "C:\Program Files\Wireshark\wireshark.exe" -k -i -
 ```
-where `password` is a root password and `192.168.1.202` is an IP address of the computer where dongle is connected.
+where `password` is a root password, `192.168.1.202` is an IP address of the computer where dongle is connected and `18` is a channel number.
 
 
 ##### License
