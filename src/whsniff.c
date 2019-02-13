@@ -16,9 +16,23 @@
 #include <stdio.h>			/* printf */
 #include <signal.h>			/* signal_handler */
 #include <string.h>			/* memset */
-#include <endian.h>			/* htole16, htole32, le32toh */
 #include <unistd.h>			/* getopt, optarg */
 #include <libusb-1.0/libusb.h>
+
+#ifndef _BSD_SOURCE
+#define _BSD_SOURCE
+#endif
+
+#if defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+#include <machine/endian.h>
+#define htole16(x) OSSwapHostToLittleInt16(x)
+#define htole32(x) OSSwapHostToLittleInt32(x)
+#define le16toh(x) OSSwapLittleToHostInt16(x)
+#define le32toh(x) OSSwapLittleToHostInt32(x)
+#else
+#include <endian.h>                     /* htole16, htole32, le32toh */
+#endif
 
 #define BUF_SIZE	256		// buffers size
 #define TIMEOUT		200		// USB timeout in ms
@@ -233,7 +247,11 @@ int main(int argc, char *argv[])
 		printf("ERROR: Could not initialize libusb.\n");
 		exit(EXIT_FAILURE);
 	}
+#if LIBUSB_API_VERSION >= 0x01000106
+         libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 3);
+#else
 	libusb_set_debug(NULL, 3);
+#endif
 	handle = libusb_open_device_with_vid_pid(NULL, 0x0451, 0x16ae);
 	if (handle == NULL)
 	{
