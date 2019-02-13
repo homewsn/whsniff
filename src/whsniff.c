@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 #if LIBUSB_API_VERSION >= 0x01000106
-         libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 3);
+        libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 3);
 #else
 	libusb_set_debug(NULL, 3);
 #endif
