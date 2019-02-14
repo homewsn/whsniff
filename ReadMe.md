@@ -23,6 +23,19 @@ $ make
 $ sudo make install
 ```
 
+##### Building (macOS)
+
+* Install `libusb` via [Homebrew](https://brew.sh) (or your preferred package manager):
+```sh
+$ brew install libusb
+```
+* Download [the latest release](https://github.com/homewsn/whsniff/releases) in tarball from github and untar it. Then build and install whsniff.
+```sh
+$ curl -L https://github.com/homewsn/whsniff/archive/v1.1.tar.gz | tar zx
+$ cd whsniff-1.1
+$ make
+$ sudo make install
+```
 
 ##### Building (OpenWrt)
 
@@ -41,7 +54,7 @@ $ ./scripts/feeds install -a -p homewsn
 
 ##### How to use (Locally)
 
-* Connect CC2531 USB dongle to your Linux PC.
+* Connect CC2531 USB dongle to your Linux or macOS computer.
 * Open a terminal session on the desktop where you have Wireshark installed and enter the following commands:
 ```sh
 $ wireshark -k -i <( path/to/whsniff -c channel_number )
