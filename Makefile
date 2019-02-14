@@ -21,7 +21,12 @@ OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 DEPS = $(HEADERS)
 
 INCLPATH = -I.
-LIBS = -lusb-1.0 -lrt
+LIBS = -lusb-1.0
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    LIBS += -lrt
+endif
 
 # Installation directories by convention
 # http://www.gnu.org/prep/standards/html_node/Directory-Variables.html
