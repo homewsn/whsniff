@@ -68,10 +68,24 @@ $ path/to/whsniff -c channel_number > /tmp/pipes/whsniff
 ```sh
 $ path/to/whsniff -c channel_number > filename.pcap
 ```
-* If you see something like `libusb: error [_get_usbfs_fd] libusb couldn't open USB device /dev/bus/usb/001/006: Permission denied` you can give the write permission for everyone (or use another solution):
-```sh
-$ sudo chmod a+w /dev/bus/usb/001/006
-```
+* If you see something like `libusb: error [_get_usbfs_fd] libusb couldn't open USB device /dev/bus/usb/001/006: Permission denied` you can use `udev`
+
+    1. Add below contents to `/etc/udev/rules.d/54-cc2531.rules`
+    ```shell
+    ATTR{idVendor}=="0451", ATTR{idProduct}=="16ae",MODE="660", GROUP="dialout"
+    ```
+
+    2. Reload `udev` rules
+    ```shell
+    sudo udevadm control --reload
+    ```
+
+    3. Add yourself to the group `dialout`, Log out and in again.
+    ```shell
+    sudo usermod -aG dialout $USER 
+    ```
+
+
 
 ##### How to use (Remotely)
 
