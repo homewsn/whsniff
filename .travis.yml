@@ -1,11 +1,36 @@
 language: c
 
-before_install:
-  - sudo apt-get update
-  - sudo apt-get install -y libusb-1.0-0-dev
+# The Xenial Build Environment
+# https://docs.travis-ci.com/user/reference/xenial/
+# The macOS Build Environment
+# https://docs.travis-ci.com/user/reference/osx/
 
-compiler:
-  - clang
-  - gcc
+matrix:
+  fast_finish: false
+  include:
+
+  - os: linux
+    dist: xenial
+    compiler: clang
+    addons:
+      apt:
+        packages:
+          - libusb-1.0-0-dev
+
+  - os: linux
+    dist: xenial
+    compiler: gcc
+    addons:
+      apt:
+        packages:
+          - libusb-1.0-0-dev
+
+  - os: osx
+    osx_image: xcode9.4
+    compiler: clang
+    addons:
+      homebrew:
+        packages:
+          - libusb
 
 script: make
