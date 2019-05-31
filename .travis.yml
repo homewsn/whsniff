@@ -1,5 +1,14 @@
 language: c
 
+env:
+  global:
+    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+    # via the "travis encrypt" command using the project repo's public key
+    - secure: "OZF9ARh/akpUH67GTiRQzaNxCOLac5nA/Vkxg6XdYLq0bU1jzp4lEIBLn+QvbIQixmuQp9M60wVpqMGq7ONhMaTxsVG0vmS+lUgGSEa+zoxXFfaX9azLv9y10NOYttpXfKdnIMr3vZ8xfrpJnVIJj9kc/bdQGxZBaXX0LODBC4T0CHB0NypQ67MXb2cmajesmbAESjudn7wDK+xdu1Rye31RYN85GWhfx3nAGlqKSYgFJd7t9eVnvVJnjn80lTbS4d9Y2lR9qTeTwgxnBgXkmkYMZHA4BQBcyhrcJLCklqblSnSy8MPr35PjGn+Q1aPN7zT3XpzN1QLCkC3FrnZA/lGYG9lbiCon7PiuS6+nshkvGNBIvqX6q5fJCEyMIM4oPNpfh205kNcN43jkggjFcc2OUK7jLrKxC7Q22BtKWAGJayoP9BR93NL4Eh7vAahVpBCOK+6j6gxvELjhwfm8PA6llr0iyilT8+Y0sedGVPkMDSdOwtd0rJ7yH3rB9ebmR5YwkTNusPPy8fOH3aj8grdHt842Gx5kActMsxEUrB5WCM6n2LODmkuaafKkPl47BA74Q180dbJRI2B04MVFu4zKfykCqeIwdXuHr7jwsSBbE8uVjK2LSuSWU90qroc9dOnv+RWzXeDOpgkNesBT6mRiHnkIwVT2t4d+J91VQAE="
+
+before_install:
+  - echo -n | openssl s_client -connect https://scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+
 # The Xenial Build Environment
 # https://docs.travis-ci.com/user/reference/xenial/
 # The macOS Build Environment
@@ -11,15 +20,23 @@ matrix:
 
   - os: linux
     dist: xenial
-    compiler: clang
+    compiler: gcc
     addons:
       apt:
         packages:
           - libusb-1.0-0-dev
+    coverity_scan:
+      project:
+        name: "homewsn/whsniff"
+        description: "Build submitted via Travis CI"
+      notification_email: homewsn.com@gmail.com
+      build_command_prepend: "cov-configure --comptype gcc --compiler /usr/bin/gcc"
+      build_command: "make"
+      branch_pattern: master
 
   - os: linux
     dist: xenial
-    compiler: gcc
+    compiler: clang
     addons:
       apt:
         packages:
