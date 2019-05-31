@@ -1,3 +1,7 @@
+[![Release Status](https://img.shields.io/github/release/homewsn/whsniff.svg)](https://github.com/homewsn/whsniff/releases)
+[![Travis CI Build Status](https://travis-ci.org/homewsn/whsniff.svg?branch=master)](https://travis-ci.org/homewsn/whsniff)
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/18471/badge.svg)](https://scan.coverity.com/projects/18471)
+
 ### A packet converter for sniffing IEEE 802.15.4 wireless sensor networks
 
 This repository is a part of the [HomeWSN](http://homewsn.github.io) project.
