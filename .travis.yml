@@ -25,14 +25,14 @@ matrix:
       apt:
         packages:
           - libusb-1.0-0-dev
-    coverity_scan:
-      project:
-        name: "homewsn/whsniff"
-        description: "Build submitted via Travis CI"
-      notification_email: homewsn.com@gmail.com
-      build_command_prepend: "cov-configure --comptype gcc --compiler /usr/bin/gcc"
-      build_command: "make"
-      branch_pattern: master
+      coverity_scan:
+        project:
+          name: "homewsn/whsniff"
+          description: "Build submitted via Travis CI"
+        notification_email: homewsn.com@gmail.com
+        build_command_prepend: "cov-configure --comptype gcc --compiler /usr/bin/gcc"
+        build_command: "make"
+        branch_pattern: master
 
   - os: linux
     dist: xenial
