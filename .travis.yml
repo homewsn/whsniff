@@ -4,7 +4,7 @@ env:
   global:
     # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
     # via the "travis encrypt" command using the project repo's public key
-    - secure: "OZF9ARh/akpUH67GTiRQzaNxCOLac5nA/Vkxg6XdYLq0bU1jzp4lEIBLn+QvbIQixmuQp9M60wVpqMGq7ONhMaTxsVG0vmS+lUgGSEa+zoxXFfaX9azLv9y10NOYttpXfKdnIMr3vZ8xfrpJnVIJj9kc/bdQGxZBaXX0LODBC4T0CHB0NypQ67MXb2cmajesmbAESjudn7wDK+xdu1Rye31RYN85GWhfx3nAGlqKSYgFJd7t9eVnvVJnjn80lTbS4d9Y2lR9qTeTwgxnBgXkmkYMZHA4BQBcyhrcJLCklqblSnSy8MPr35PjGn+Q1aPN7zT3XpzN1QLCkC3FrnZA/lGYG9lbiCon7PiuS6+nshkvGNBIvqX6q5fJCEyMIM4oPNpfh205kNcN43jkggjFcc2OUK7jLrKxC7Q22BtKWAGJayoP9BR93NL4Eh7vAahVpBCOK+6j6gxvELjhwfm8PA6llr0iyilT8+Y0sedGVPkMDSdOwtd0rJ7yH3rB9ebmR5YwkTNusPPy8fOH3aj8grdHt842Gx5kActMsxEUrB5WCM6n2LODmkuaafKkPl47BA74Q180dbJRI2B04MVFu4zKfykCqeIwdXuHr7jwsSBbE8uVjK2LSuSWU90qroc9dOnv+RWzXeDOpgkNesBT6mRiHnkIwVT2t4d+J91VQAE="
+    - secure: "B/r1udhVClBST1UK5YVV+Uwg0fG4kIkjyd6AA8wYlFBhq+0lWKvJGghJlif6bfJcaSWWKizYM8uzzFvRK4PhYweWX7e0qu2RFPhW+8rISe4w7mbMpcR6ohgULzA7g5b0jX4hceOoAMopL/nNOxtmXenQOCzBk5/XoZ3L5Q2EyfNZax27uvvK3GJzrGiZ/iTI4DusMOSjbEkkiPKZC7fJ1y9WYN5aOHWEP1mczU2kFHsQ8Hw4xGIovMzGYwoWk2/5XDg37Y+vA29P6TKH2bEU9Yi5FtEraG9f4wAq49nwEqtZeeFcfG+4vS3S7k1+DlOX44422hF5Gbh1qMlVYutGF2rkfbUKAdYHO8aKJxQwbvV+mEglmEeIlnzEvePaMvXt7mwgEL6utGJkB+wyNUI73rU8ONH2OdBK88LtNOBYcDlbVAuTDN5NNdwBHyKH3p4KUHN2gYo3R65l4GVpIK3jPWG+H/yWcR7ZabwcbrMTh7ObUM1uhCpMI1wq7CMx5glml3m0dtMJWxgjalPWkt0Cdt+YcL9mDud9TdTKLK4q7Ss9rAS5jidOCk7ryOw7/1FVYxWefiiRWF7zifSw3PbUscQ6q4XwSucZLNIxQ6xLq75vNey5yGQPyGipl2bH0/ShAlASfxlbdZx+eyHAj24dubsuU3jYEFaOWJ2DhpSZ2Mw="
 
 before_install:
   - echo -n | openssl s_client -connect https://scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
@@ -27,11 +27,11 @@ matrix:
           - libusb-1.0-0-dev
       coverity_scan:
         project:
-          name: "homewsn/whsniff"
-          description: "Build submitted via Travis CI"
+          name: homewsn/whsniff
+          description: Build submitted via Travis CI
         notification_email: homewsn.com@gmail.com
-        build_command_prepend: "cov-configure --comptype gcc --compiler /usr/bin/gcc"
-        build_command: "make"
+        build_command_prepend: cov-configure --comptype gcc --compiler /usr/bin/gcc
+        build_command: make
         branch_pattern: master
 
   - os: linux
