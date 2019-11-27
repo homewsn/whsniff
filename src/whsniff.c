@@ -201,7 +201,6 @@ int main(int argc, char *argv[])
 	int res;
 	libusb_device_handle *handle;
 	libusb_device *dev;
-	struct libusb_device_descriptor desc;
 	uint8_t channel;
 	int option;
 	static unsigned char usb_buf[BUF_SIZE];
@@ -252,29 +251,65 @@ int main(int argc, char *argv[])
 #else
 	libusb_set_debug(NULL, 3);
 #endif
-	handle = libusb_open_device_with_vid_pid(NULL, 0x0451, 0x16ae);
-	if (handle == NULL)
+	// find first unused device
+	int found_device = 0;
+	libusb_device **list = NULL;
+	ssize_t count = libusb_get_device_list(NULL, &list);
+	for (size_t idx = 0; idx < count; ++idx)
 	{
-		printf("ERROR: Could not open CC2531 USB Dongle with sniffer firmware. Not found or not accessible.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	if (libusb_kernel_driver_active(handle, 0))
-	{
-		res = libusb_detach_kernel_driver(handle, 0);
-		if (res < 0)
+		libusb_device *device = list[idx];
+		struct libusb_device_descriptor t_desc;
+		libusb_get_device_descriptor(device, &t_desc);
+		if(t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
 		{
-			printf("ERROR: Could not detach kernel driver from CC2531 USB Dongle.\n");
-			exit(EXIT_FAILURE);
+			// printf("Found device %04x:%04x (bcdDevice: %04x)\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice);
+			if(libusb_open(device, &handle) != 0)
+			{
+				fprintf(stderr, "--> unable to open device.\n");
+				continue;
+			}
+			if (handle == NULL)
+			{
+				fprintf(stderr, "ERROR: Could not open CC2531 USB Dongle with sniffer firmware. Not found or not accessible.\n");
+				continue;
+			}
+
+			if (libusb_kernel_driver_active(handle, 0))
+			{
+				res = libusb_detach_kernel_driver(handle, 0);
+				if (res < 0)
+				{
+					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle.\n");
+					libusb_close(handle);
+					continue;
+				}
+			}
+
+			res = libusb_set_configuration(handle, 1);
+			if (res < 0)
+			{
+				fprintf(stderr, "--> unable to set configuration for device.\n");
+				libusb_close(handle);
+				continue;
+			}
+			res = libusb_claim_interface(handle, 0);
+			if (res < 0)
+			{
+				fprintf(stderr, "--> unable to claim interface for device.\n");
+				libusb_close(handle);
+				continue;
+			}
+			found_device = 1;
+			break;
 		}
 	}
+	libusb_free_device_list(list, count);
+	if(!found_device)
+	{
+		printf("ERROR: No working device found.\n");
+		exit(EXIT_FAILURE);
+	}
 
-	res = libusb_set_configuration(handle, 1);
-	if (res < 0)
-		exit(EXIT_FAILURE);
-	res = libusb_claim_interface(handle, 0);
-	if (res < 0)
-		exit(EXIT_FAILURE);
 
 	// get identity from firmware command
 	res = libusb_control_transfer(handle, 0xc0, 192, 0, 0, (unsigned char *)&usb_buf, BUF_SIZE, TIMEOUT);
