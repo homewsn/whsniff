@@ -21,8 +21,8 @@ $ sudo apt-get install libusb-1.0-0-dev
 ```
 * Download [the latest release](https://github.com/homewsn/whsniff/releases) in tarball from github and untar it. Then build and install whsniff.
 ```sh
-$ curl -L https://github.com/homewsn/whsniff/archive/v1.1.tar.gz | tar zx
-$ cd whsniff-1.1
+$ curl -L https://github.com/homewsn/whsniff/archive/v1.2.tar.gz | tar zx
+$ cd whsniff-1.2
 $ make
 $ sudo make install
 ```
@@ -35,8 +35,8 @@ $ brew install libusb
 ```
 * Download [the latest release](https://github.com/homewsn/whsniff/releases) in tarball from github and untar it. Then build and install whsniff.
 ```sh
-$ curl -L https://github.com/homewsn/whsniff/archive/v1.1.tar.gz | tar zx
-$ cd whsniff-1.1
+$ curl -L https://github.com/homewsn/whsniff/archive/v1.2.tar.gz | tar zx
+$ cd whsniff-1.2
 $ make
 $ sudo make install
 ```
