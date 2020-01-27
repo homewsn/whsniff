@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015 Vladimir Alemasov
+* Copyright (c) 2015-2020 Vladimir Alemasov
 * All rights reserved
 *
 * This program and the accompanying materials are distributed under 
@@ -17,6 +17,8 @@
 #include <signal.h>			/* signal_handler */
 #include <string.h>			/* memset */
 #include <unistd.h>			/* getopt, optarg */
+#include <stdint.h>			/* uint8_t ... uint64_t */
+#include <time.h>			/* time */
 #include <libusb-1.0/libusb.h>
 
 #ifndef _BSD_SOURCE
@@ -107,6 +109,8 @@ static int packet_handler(unsigned char *buf, int cnt)
 	uint16_t usb_len;
 	uint32_t le_ts;
 	uint32_t timestamp;
+	static time_t timestamp_epoch;
+	static uint64_t timestamp_offset;
 	static uint64_t timestamp_tick;
 	uint64_t timestamp_us;
 	uint16_t fcs;
@@ -138,9 +142,17 @@ static int packet_handler(unsigned char *buf, int cnt)
 			// host timestamp in microseconds
 			timestamp_us = (timestamp_tick + le32toh(usb_data_header->le_timestamp)) / 32;
 
+			if (!timestamp_offset)
+			{
+				timestamp_epoch = time(NULL);
+				timestamp_offset = timestamp_us;
+			}
+			timestamp_us -= timestamp_offset;
+
 			// native(host) byte ordering, see pcap_hdr.magic_number
 			pcaprec_hdr.ts_sec = (uint32_t)(timestamp_us / 1000000);
 			pcaprec_hdr.ts_usec = (uint32_t)(timestamp_us - (uint64_t)(pcaprec_hdr.ts_sec) * 1000000);
+			pcaprec_hdr.ts_sec += (uint32_t)timestamp_epoch;
 			pcaprec_hdr.incl_len = (uint32_t)usb_data_header->wpan_len;
 			pcaprec_hdr.orig_len = (uint32_t)usb_data_header->wpan_len;
 
