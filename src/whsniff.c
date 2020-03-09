@@ -132,6 +132,11 @@ static int packet_handler(unsigned char *buf, int cnt)
 			if (usb_data_header->wpan_len + sizeof(usb_data_header_type) > cnt)
 				return -1;
 
+			if (usb_data_header->wpan_len < 5)
+			{
+				break;
+			}
+
 			// SmartRF™ Packet Sniffer User’s Manual (SWRU187G)
 			// Timestamp:
 			// 64 bit counter value. To calculate the time in microseconds this value must be divided by a number
