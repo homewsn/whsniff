@@ -100,7 +100,7 @@ static uint16_t ieee802154_crc16(uint8_t *tvb, uint32_t offset, uint32_t len);
 
 
 //--------------------------------------------
-static int packet_handler(unsigned char *buf, int cnt)
+static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs)
 {
 	usb_header_type *usb_header;
 	usb_data_header_type *usb_data_header;
@@ -162,7 +162,6 @@ static int packet_handler(unsigned char *buf, int cnt)
 			pcaprec_hdr.orig_len = (uint32_t)usb_data_header->wpan_len;
 
 			fwrite(&pcaprec_hdr, sizeof(pcaprec_hdr), 1, stdout);
-			fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len - 2, stdout);
 
 			// SmartRF™ Packet Sniffer User’s Manual (SWRU187G)
 			// FCS:
@@ -172,15 +171,21 @@ static int packet_handler(unsigned char *buf, int cnt)
 			// Bit 6-0: If Correlation used: Correlation value.
 			// If Correlation not used: LQI.
 
-			fcs = 0;
-			if (buf[sizeof(usb_data_header_type) + usb_data_header->wpan_len - 1] & 0x80)
+			if (keep_original_fcs)
+				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len, stdout);
+			else
 			{
-				// CRC OK
-				fcs = ieee802154_crc16((uint8_t *)&buf[sizeof(usb_data_header_type)], 0, usb_data_header->wpan_len - 2);
-			}
-			le_fcs = htole16(fcs);
+				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len - 2, stdout);
+				fcs = 0;
+				if (buf[sizeof(usb_data_header_type) + usb_data_header->wpan_len - 1] & 0x80)
+				{
+					// CRC OK
+					fcs = ieee802154_crc16((uint8_t *)&buf[sizeof(usb_data_header_type)], 0, usb_data_header->wpan_len - 2);
+				}
+				le_fcs = htole16(fcs);
 
-			fwrite(&le_fcs, sizeof(le_fcs), 1, stdout);
+				fwrite(&le_fcs, sizeof(le_fcs), 1, stdout);
+			}
 			fflush(stdout);
 
 			break;
@@ -209,7 +214,7 @@ void signal_handler(int sig)
 //--------------------------------------------
 void print_usage()
 {
-    printf("Usage: whsniff -c channel\n");
+    printf("Usage: whsniff -c channel [-k]\n");
 }
 
 //--------------------------------------------
@@ -219,6 +224,7 @@ int main(int argc, char *argv[])
 	libusb_device_handle *handle;
 	libusb_device *dev;
 	uint8_t channel;
+	uint8_t keep_original_fcs = 0;
 	int option;
 	static unsigned char usb_buf[BUF_SIZE];
 	static int usb_cnt;
@@ -232,14 +238,14 @@ int main(int argc, char *argv[])
 	// pipe closed
 	signal(SIGPIPE, signal_handler);
 
-	if (argc != 3)
+	if (argc != 3 && argc != 4)
 	{
 		print_usage();
 		exit(EXIT_FAILURE);
 	}
 
 	option = 0;
-	while ((option = getopt(argc, argv, "c:")) != -1)
+	while ((option = getopt(argc, argv, "c:k")) != -1)
 	{
 		switch (option)
 		{
@@ -250,6 +256,9 @@ int main(int argc, char *argv[])
 					printf("ERROR: Invalid 802.15.4 channel. Must be in range 11 to 26.\n");
 					exit(EXIT_FAILURE);
 				}
+				break;
+			case 'k':
+				keep_original_fcs = 1;
 				break;
 			default:
 				print_usage();
@@ -379,7 +388,7 @@ int main(int argc, char *argv[])
 
 		for (;;)
 		{
-			res = packet_handler(&recv_buf[0], recv_cnt);
+			res = packet_handler(&recv_buf[0], recv_cnt, keep_original_fcs);
 			if (res < 0)
 				break;
 			recv_cnt -= res;

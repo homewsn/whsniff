@@ -72,6 +72,10 @@ $ path/to/whsniff -c channel_number > /tmp/pipes/whsniff
 ```sh
 $ path/to/whsniff -c channel_number > filename.pcap
 ```
+* You can also keep the original FCS sent by the CC2531 through the -k option. The original FCS contains the RSSI and LQI. It can be interpreted by wireshark as a "TI CC24xx FCS format":
+```sh
+$ path/to/whsniff -k -c channel_number > /tmp/pipes/whsniff
+```
 * If you see something like `libusb: error [_get_usbfs_fd] libusb couldn't open USB device /dev/bus/usb/001/006: Permission denied` you can use `udev`
 
     1. Add below contents to `/etc/udev/rules.d/54-cc2531.rules`
