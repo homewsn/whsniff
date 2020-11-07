@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 	int res;
 	libusb_device_handle *handle;
 	libusb_device *dev;
-	uint8_t channel;
+	uint8_t channel = 0;
 	uint8_t keep_original_fcs = 0;
 	int option;
 	static unsigned char usb_buf[BUF_SIZE];
@@ -264,6 +264,12 @@ int main(int argc, char *argv[])
 				print_usage();
 				exit(EXIT_FAILURE);
 		}
+	}
+	// check the mandatory options
+	if (!channel)
+	{
+		print_usage();
+		exit(EXIT_FAILURE);
 	}
 
 	res = libusb_init(NULL);
