@@ -358,8 +358,13 @@ FILE * restart_pcap_file(FILE * prev_file)
 			fclose(prev_file);
 
 		// Open a new file 
-		// TODO: generate new file name
-		file = fopen("whsniff.pcap", "wb");
+		char filename[100];
+		time_t t = time(NULL);
+		struct tm tm = *localtime(&t);
+		sprintf(filename, "whsniff-%d-%02d-%02d-%02d-%02d-%02d.pcap", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+		fprintf(stderr, "Sniffing to %s\n", filename);
+		file = fopen(filename, "wb");
 	}
 
 	// Write PCAP header
