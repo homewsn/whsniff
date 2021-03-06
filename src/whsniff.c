@@ -100,7 +100,7 @@ static uint16_t ieee802154_crc16(uint8_t *tvb, uint32_t offset, uint32_t len);
 
 
 //--------------------------------------------
-static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs)
+static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs, FILE * file)
 {
 	usb_header_type *usb_header;
 	usb_data_header_type *usb_data_header;
@@ -161,7 +161,7 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 			pcaprec_hdr.incl_len = (uint32_t)usb_data_header->wpan_len;
 			pcaprec_hdr.orig_len = (uint32_t)usb_data_header->wpan_len;
 
-			fwrite(&pcaprec_hdr, sizeof(pcaprec_hdr), 1, stdout);
+			fwrite(&pcaprec_hdr, sizeof(pcaprec_hdr), 1, file);
 
 			// SmartRF™ Packet Sniffer User’s Manual (SWRU187G)
 			// FCS:
@@ -172,10 +172,10 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 			// If Correlation not used: LQI.
 
 			if (keep_original_fcs)
-				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len, stdout);
+				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len, file);
 			else
 			{
-				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len - 2, stdout);
+				fwrite(&buf[sizeof(usb_data_header_type)], 1, usb_data_header->wpan_len - 2, file);
 				fcs = 0;
 				if (buf[sizeof(usb_data_header_type) + usb_data_header->wpan_len - 1] & 0x80)
 				{
@@ -184,9 +184,9 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 				}
 				le_fcs = htole16(fcs);
 
-				fwrite(&le_fcs, sizeof(le_fcs), 1, stdout);
+				fwrite(&le_fcs, sizeof(le_fcs), 1, file);
 			}
-			fflush(stdout);
+			fflush(file);
 
 			break;
 
@@ -230,6 +230,7 @@ int main(int argc, char *argv[])
 	static int usb_cnt;
 	static unsigned char recv_buf[2 * BUF_SIZE];
 	static int recv_cnt;
+	FILE * file = stdout;
 
 	// ctrl-c
 	signal(SIGINT, signal_handler);
@@ -367,8 +368,8 @@ int main(int argc, char *argv[])
 	// start sniffing
 	res = libusb_control_transfer(handle, 0x40, 208, 0, 0, NULL, 0, TIMEOUT);
 
-	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, stdout);
-	fflush(stdout);
+	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
+	fflush(file);
 
 	while (!signal_exit)
 	{
@@ -394,7 +395,7 @@ int main(int argc, char *argv[])
 
 		for (;;)
 		{
-			res = packet_handler(&recv_buf[0], recv_cnt, keep_original_fcs);
+			res = packet_handler(&recv_buf[0], recv_cnt, keep_original_fcs, file);
 			if (res < 0)
 				break;
 			recv_cnt -= res;
