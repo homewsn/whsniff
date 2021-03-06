@@ -353,8 +353,24 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 {
 	static int last_hour = -1;
 	static int last_day = -1;
+	static int stdout_header_written = 0;
 
 	FILE * file = prev_file;
+
+	// print PCAP header to stdout only once
+	if(file == stdout)
+	{
+		if(!stdout_header_written)
+		{
+			// Write PCAP header
+			fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
+			fflush(file);
+
+			stdout_header_written = 1;
+		}
+		
+		return file;
+	}
 
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
@@ -371,20 +387,16 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 	last_hour = tm.tm_hour;
 	last_day = tm.tm_mday;
 
-	// Restart file write
-	if(file != stdout)
-	{
-		// Close previous file
-		if(file)
-			fclose(file);
+	// Close previous file
+	if(file)
+		fclose(file);
 
-		// Open a new file 
-		char filename[100];
-		sprintf(filename, "whsniff-%d-%02d-%02d-%02d-%02d-%02d.pcap", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	// ... and open a new one
+	char filename[100];
+	sprintf(filename, "whsniff-%d-%02d-%02d-%02d-%02d-%02d.pcap", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-		fprintf(stderr, "Sniffing to %s\n", filename);
-		file = fopen(filename, "wb");
-	}
+	fprintf(stderr, "Sniffing to %s\n", filename);
+	file = fopen(filename, "wb");
 
 	// Write PCAP header
 	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
