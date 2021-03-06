@@ -217,73 +217,27 @@ void print_usage()
     printf("Usage: whsniff -c channel [-k]\n");
 }
 
+
 //--------------------------------------------
-int main(int argc, char *argv[])
+libusb_device_handle * init_usb_sniffer(uint8_t channel)
 {
 	int res;
 	libusb_device_handle *handle;
 	libusb_device *dev;
-	uint8_t channel = 0;
-	uint8_t keep_original_fcs = 0;
-	int option;
 	static unsigned char usb_buf[BUF_SIZE];
-	static int usb_cnt;
-	static unsigned char recv_buf[2 * BUF_SIZE];
-	static int recv_cnt;
-	FILE * file = stdout;
-
-	// ctrl-c
-	signal(SIGINT, signal_handler);
-	// killall whsniff
-	signal(SIGTERM, signal_handler);
-	// pipe closed
-	signal(SIGPIPE, signal_handler);
-
-	if (argc != 3 && argc != 4)
-	{
-		print_usage();
-		exit(EXIT_FAILURE);
-	}
-
-	option = 0;
-	while ((option = getopt(argc, argv, "c:k")) != -1)
-	{
-		switch (option)
-		{
-			case 'c':
-				channel = (uint8_t)atoi(optarg);
-				if (channel < 11 || channel > 26)
-				{
-					printf("ERROR: Invalid 802.15.4 channel. Must be in range 11 to 26.\n");
-					exit(EXIT_FAILURE);
-				}
-				break;
-			case 'k':
-				keep_original_fcs = 1;
-				break;
-			default:
-				print_usage();
-				exit(EXIT_FAILURE);
-		}
-	}
-	// check the mandatory options
-	if (!channel)
-	{
-		print_usage();
-		exit(EXIT_FAILURE);
-	}
 
 	res = libusb_init(NULL);
 	if (res < 0)
 	{
 		printf("ERROR: Could not initialize libusb.\n");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 #if LIBUSB_API_VERSION >= 0x01000106
 	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 3);
 #else
 	libusb_set_debug(NULL, 3);
 #endif
+
 	// find first unused device
 	int found_device = 0;
 	libusb_device **list = NULL;
@@ -340,7 +294,7 @@ int main(int argc, char *argv[])
 	if(!found_device)
 	{
 		printf("ERROR: No working device found.\n");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 
@@ -368,12 +322,92 @@ int main(int argc, char *argv[])
 	// start sniffing
 	res = libusb_control_transfer(handle, 0x40, 208, 0, 0, NULL, 0, TIMEOUT);
 
+	return handle;
+}
+
+//--------------------------------------------
+void close_usb_sniffer(libusb_device_handle *handle)
+{
+	int res;
+
+	// stop sniffing
+	res = libusb_control_transfer(handle, 0x40, 209, 0, 0, NULL, 0, TIMEOUT);
+	// power off radio, wIndex = 0
+	res = libusb_control_transfer(handle, 0x40, 197, 0, 0, NULL, 0, TIMEOUT);
+
+	// clearing
+	res = libusb_release_interface(handle, 0);
+	libusb_close(handle);
+	libusb_exit(NULL);
+}
+
+//--------------------------------------------
+int main(int argc, char *argv[])
+{
+	uint8_t channel = 0;
+	uint8_t keep_original_fcs = 0;
+	int option;
+	static unsigned char usb_buf[BUF_SIZE];
+	static int usb_cnt;
+	static unsigned char recv_buf[2 * BUF_SIZE];
+	static int recv_cnt;
+	FILE * file = stdout;
+
+	// ctrl-c
+	signal(SIGINT, signal_handler);
+	// killall whsniff
+	signal(SIGTERM, signal_handler);
+	// pipe closed
+	signal(SIGPIPE, signal_handler);
+
+	if (argc != 3 && argc != 4)
+	{
+		print_usage();
+		exit(EXIT_FAILURE);
+	}
+
+	option = 0;
+	while ((option = getopt(argc, argv, "c:k")) != -1)
+	{
+		switch (option)
+		{
+			case 'c':
+				channel = (uint8_t)atoi(optarg);
+				if (channel < 11 || channel > 26)
+				{
+					
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case 'k':
+				keep_original_fcs = 1;
+				break;
+			default:
+				print_usage();
+				exit(EXIT_FAILURE);
+		}
+	}
+	// check the mandatory options
+	if (!channel)
+	{
+		print_usage();
+		exit(EXIT_FAILURE);
+	}
+
+	libusb_device_handle *handle = init_usb_sniffer(channel);
+	if(NULL == handle)
+	{
+		printf("Cannot initialize USB sniffer device\n");
+		exit(EXIT_FAILURE);
+	}
+
+	// Write PCAP header
 	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
 	fflush(file);
 
 	while (!signal_exit)
 	{
-		res = libusb_bulk_transfer(handle, 0x83, (unsigned char *)&usb_buf, BUF_SIZE, &usb_cnt, 10000);
+		int res = libusb_bulk_transfer(handle, 0x83, (unsigned char *)&usb_buf, BUF_SIZE, &usb_cnt, 10000);
 
 		if (usb_cnt + recv_cnt > 2 * BUF_SIZE)
 		{
@@ -405,16 +439,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// stop sniffing
-	res = libusb_control_transfer(handle, 0x40, 209, 0, 0, NULL, 0, TIMEOUT);
-	// power off radio, wIndex = 0
-	res = libusb_control_transfer(handle, 0x40, 197, 0, 0, NULL, 0, TIMEOUT);
-
-
-	// clearing
-	res = libusb_release_interface(handle, 0);
-	libusb_close(handle);
-	libusb_exit(NULL);
+	close_usb_sniffer(handle);
 
 	exit(EXIT_SUCCESS);
 }
