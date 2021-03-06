@@ -214,7 +214,12 @@ void signal_handler(int sig)
 //--------------------------------------------
 void print_usage()
 {
-    printf("Usage: whsniff -c channel [-k]\n");
+    printf("Usage: whsniff -c <channel> [-k] [-f]\n");
+    printf("\n");
+    printf("Where\n");
+    printf("\t-c <channel> - Zigbee channel number (11 to 26)\n");
+    printf("\t-k - keep the original FCS sent by the CC2531\n");
+    printf("\t-f - dump to file instead of stdout (handy for long sniffs with -h/-d options)\n");
 }
 
 
@@ -342,16 +347,39 @@ void close_usb_sniffer(libusb_device_handle *handle)
 }
 
 //--------------------------------------------
+FILE * restart_pcap_file(FILE * prev_file)
+{
+	FILE * file = prev_file;
+
+	if(file != stdout)
+	{
+		// Close previous file
+		if(NULL != file)
+			fclose(prev_file);
+
+		// Open a new file 
+		// TODO: generate new file name
+		file = fopen("whsniff.pcap", "wb");
+	}
+
+	// Write PCAP header
+	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
+	fflush(file);
+
+	return file;
+}
+
+//--------------------------------------------
 int main(int argc, char *argv[])
 {
 	uint8_t channel = 0;
 	uint8_t keep_original_fcs = 0;
+	uint8_t dump_to_file = 0;
 	int option;
 	static unsigned char usb_buf[BUF_SIZE];
 	static int usb_cnt;
 	static unsigned char recv_buf[2 * BUF_SIZE];
 	static int recv_cnt;
-	FILE * file = stdout;
 
 	// ctrl-c
 	signal(SIGINT, signal_handler);
@@ -367,7 +395,7 @@ int main(int argc, char *argv[])
 	}
 
 	option = 0;
-	while ((option = getopt(argc, argv, "c:k")) != -1)
+	while ((option = getopt(argc, argv, "c:kf")) != -1)
 	{
 		switch (option)
 		{
@@ -381,6 +409,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'k':
 				keep_original_fcs = 1;
+				break;
+			case 'f':
+				dump_to_file = 1;
 				break;
 			default:
 				print_usage();
@@ -401,9 +432,9 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	
 	// Write PCAP header
-	fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
-	fflush(file);
+	FILE * file = restart_pcap_file(dump_to_file ? NULL /*Open new file*/ : stdout);
 
 	while (!signal_exit)
 	{
@@ -440,6 +471,7 @@ int main(int argc, char *argv[])
 	}
 
 	close_usb_sniffer(handle);
+	fclose(file);
 
 	exit(EXIT_SUCCESS);
 }
