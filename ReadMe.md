@@ -72,6 +72,15 @@ $ path/to/whsniff -c channel_number > /tmp/pipes/whsniff
 ```sh
 $ path/to/whsniff -c channel_number > filename.pcap
 ```
+* You can also let whsniff save the output to a file, whsniff will generate a file name that indicates sniffing start date/time
+```sh
+$ path/to/whsniff -c channel_number -f
+```
+* You can also let whsniff save the output to a file, and automatically restart sniffing every hour (-h) or day (-d) so that a single file is not too huge
+```sh
+$ path/to/whsniff -c channel_number -f -h
+$ path/to/whsniff -c channel_number -f -d
+```
 * You can also keep the original FCS sent by the CC2531 through the -k option. The original FCS contains the RSSI and LQI. It can be interpreted by wireshark as a "TI CC24xx FCS format":
 ```sh
 $ path/to/whsniff -k -c channel_number > /tmp/pipes/whsniff
