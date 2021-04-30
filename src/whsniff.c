@@ -239,7 +239,7 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 	res = libusb_init(NULL);
 	if (res < 0)
 	{
-		printf("ERROR: Could not initialize libusb.\n");
+		fprintf(stderr, "ERROR: Could not initialize libusb: %s\n",libusb_error_name(res));
 		return NULL;
 	}
 #if LIBUSB_API_VERSION >= 0x01000106
@@ -261,10 +261,12 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 		libusb_get_device_descriptor(device, &t_desc);
 		if (t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
 		{
-			// printf("Found device %04x:%04x (bcdDevice: %04x)\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice);
-			if (libusb_open(device, &handle) != 0)
+			fprintf(stderr, "Found device %04x:%04x (bcdDevice: %04x) on Bus %03d, Device %03d\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice, bus_number, device_address);
+
+			res = libusb_open(device, &handle);
+			if (res != 0)
 			{
-				fprintf(stderr, "--> unable to open device.\n");
+				fprintf(stderr, "--> unable to open device: %s\n",libusb_error_name(res));
 				continue;
 			}
 			if (handle == NULL)
@@ -278,7 +280,7 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 				res = libusb_detach_kernel_driver(handle, 0);
 				if (res < 0)
 				{
-					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle.\n");
+					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle: %s\n", libusb_error_name(res));
 					libusb_close(handle);
 					continue;
 				}
@@ -287,14 +289,14 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 			res = libusb_set_configuration(handle, 1);
 			if (res < 0)
 			{
-				fprintf(stderr, "--> unable to set configuration for device.\n");
+				fprintf(stderr, "--> unable to set configuration for device: %s\n", libusb_error_name(res));
 				libusb_close(handle);
 				continue;
 			}
 			res = libusb_claim_interface(handle, 0);
 			if (res < 0)
 			{
-				fprintf(stderr, "--> unable to claim interface for device.\n");
+				fprintf(stderr, "--> unable to claim interface for device: %s\n",libusb_error_name(res));
 				libusb_close(handle);
 				continue;
 			}
@@ -305,7 +307,7 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 	libusb_free_device_list(list, count);
 	if (!found_device)
 	{
-		printf("ERROR: No working device found.\n");
+		fprintf(stderr, "ERROR: No working device found.\n");
 		return NULL;
 	}
 
@@ -352,6 +354,10 @@ void close_usb_sniffer(libusb_device_handle *handle)
 
 	// clearing
 	res = libusb_release_interface(handle, 0);
+	
+	//dummy stmt to remove warning unsused-but-set
+	res+=0;
+	
 	libusb_close(handle);
 	libusb_exit(NULL);
 }
@@ -492,7 +498,7 @@ int main(int argc, char *argv[])
 		if (usb_cnt + recv_cnt > 2 * BUF_SIZE)
 		{
 			// overflow error
-			printf("%s\n", "ERROR: Buffer overflow.\n");
+			fprintf(stderr,"ERROR: Buffer overflow.\n");
 			break;
 		}
 		if (res < 0)
@@ -500,7 +506,7 @@ int main(int argc, char *argv[])
 			if (res == LIBUSB_ERROR_TIMEOUT)
 				continue;
 			// libusb error
-			printf("ERROR: %s.\n", libusb_error_name(res));
+			fprintf(stderr,"ERROR: %s.\n", libusb_error_name(res));
 			break;
 		}
 
@@ -614,7 +620,7 @@ static uint16_t update_crc_ccitt(uint16_t crc, uint8_t c)
 	tmp = (crc >> 8) ^ short_c;
 	crc = (crc << 8) ^ crc_tabccitt[tmp];
 	return crc;
-} 
+}
 
 //-------------------------------------------------------------------------
 // Computes the 16-bit CRC according to the CCITT/ITU-T Standard
