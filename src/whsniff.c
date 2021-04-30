@@ -80,6 +80,16 @@ typedef struct usb_tick_header
 	uint8_t tick;				// tick counter
 } usb_tick_header_type;
 
+typedef struct prg_options {
+	uint8_t restart_hourly;
+	uint8_t restart_daily;
+	uint8_t channel;
+	uint8_t keep_original_fcs;
+	uint8_t dump_to_file;
+	uint8_t specific_device;
+	uint8_t bus_num, dev_num;
+} prg_options_type;
+
 #pragma pack(pop)
 
 static const pcap_hdr_t pcap_hdr = {
@@ -94,6 +104,17 @@ static const pcap_hdr_t pcap_hdr = {
 
 /* variable used to flag when a signal was received */
 static volatile unsigned int signal_exit = 0;
+
+static prg_options_type prg_options = {
+	.restart_daily = 0,
+	.restart_hourly = 0,
+	.channel = 0,
+	.keep_original_fcs = 0,
+	.dump_to_file = 0,
+	.specific_device = 0,
+	.bus_num = 0,
+	.dev_num = 0
+};
 
 //--------------------------------------------
 static uint16_t update_crc_ccitt(uint16_t crc, uint8_t c);
@@ -221,6 +242,7 @@ void print_usage()
     printf("\t-f - dump to file instead of stdout (handy for long sniffs with -h/-d options)\n");
     printf("\t-h - start a new dump file evey hour (used with -f)\n");
     printf("\t-d - start a new dump file evey day (used with -f)\n");
+    printf("\t-l - list the recognized devices\n");
 }
 
 
@@ -363,7 +385,46 @@ void close_usb_sniffer(libusb_device_handle *handle)
 }
 
 //--------------------------------------------
-FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t restart_daily)
+void list_devices()
+{
+	int res;
+	// USB device identifier used by lsusb command
+	uint8_t bus_number, device_address;
+
+	res = libusb_init(NULL);
+	if (res < 0)
+	{
+		fprintf(stderr, "ERROR: Could not initialize libusb: %s\n", libusb_error_name(res));
+		return;
+	}
+
+
+	// find first unused device
+	int found_device = 0;
+	libusb_device **list = NULL;
+	ssize_t count = libusb_get_device_list(NULL, &list);
+	for (size_t idx = 0; idx < count; ++idx)
+	{
+		libusb_device *device = list[idx];
+		struct libusb_device_descriptor t_desc;
+		libusb_get_device_descriptor(device, &t_desc);
+		bus_number = libusb_get_bus_number(device);
+		device_address = libusb_get_device_address(device);
+
+		if (t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
+		{
+			fprintf(stdout, "Found device %04x:%04x (bcdDevice: %04x) on Bus %03d, Device %03d\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice, bus_number, device_address);
+			found_device = 1;
+		}
+	}
+
+	if (!found_device)
+		fprintf(stderr, "ERROR: No working device found.\n");
+
+}
+
+//--------------------------------------------
+FILE * restart_pcap_file(FILE * prev_file)
 {
 	static int last_hour = -1;
 	static int last_day = -1;
@@ -390,11 +451,11 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 	struct tm tm = *localtime(&t);
 
 	// No need to restart if hour has not yet changed
-	if (restart_hourly && last_hour == tm.tm_hour)
+	if (prg_options.restart_hourly && last_hour == tm.tm_hour)
 		return file;
 
 	// No need to restart if day has not yet changed
-	if (restart_daily && last_day == tm.tm_mday)
+	if (prg_options.restart_daily && last_day == tm.tm_mday)
 		return file;
 
 	// Store last hour/day
@@ -422,11 +483,7 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 //--------------------------------------------
 int main(int argc, char *argv[])
 {
-	uint8_t channel = 0;
-	uint8_t keep_original_fcs = 0;
-	uint8_t dump_to_file = 0;
-	uint8_t restart_hourly = 0;
-	uint8_t restart_daily = 0;
+
 	int option;
 	static unsigned char usb_buf[BUF_SIZE];
 	static int usb_cnt;
@@ -443,43 +500,45 @@ int main(int argc, char *argv[])
 	signal(SIGPIPE, signal_handler);
 
 	option = 0;
-	while ((option = getopt(argc, argv, "c:kfhd")) != -1)
+	while ((option = getopt(argc, argv, "c:kfhdl")) != -1)
 	{
 		switch (option)
 		{
 			case 'c':
-				channel = (uint8_t)atoi(optarg);
-				if (channel < 11 || channel > 26)
+				prg_options.channel = (uint8_t)atoi(optarg);
+				if (prg_options.channel < 11 || prg_options.channel > 26)
 				{
-					
 					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'k':
-				keep_original_fcs = 1;
+				prg_options.keep_original_fcs = 1;
 				break;
 			case 'f':
-				dump_to_file = 1;
+				prg_options.dump_to_file = 1;
 				break;
 			case 'h':
-				restart_hourly = 1;
+				prg_options.restart_hourly = 1;
 				break;
 			case 'd':
-				restart_daily = 1;
+				prg_options.restart_daily = 1;
 				break;
+			case 'l':
+				list_devices();
+				exit(EXIT_SUCCESS);
 			default:
 				print_usage();
 				exit(EXIT_FAILURE);
 		}
 	}
 	// check the mandatory options
-	if (!channel)
+	if (!prg_options.channel)
 	{
 		print_usage();
 		exit(EXIT_FAILURE);
 	}
 
-	libusb_device_handle *handle = init_usb_sniffer(channel);
+	libusb_device_handle *handle = init_usb_sniffer(prg_options.channel);
 	if (NULL == handle)
 	{
 		printf("Cannot initialize USB sniffer device\n");
@@ -490,7 +549,7 @@ int main(int argc, char *argv[])
 	while (!signal_exit)
 	{
 		// restart new PCAP file (if needed)
-		file = restart_pcap_file(dump_to_file ? file /*Open new file*/ : stdout, restart_hourly, restart_daily);
+		file = restart_pcap_file(prg_options.dump_to_file ? file /*Open new file*/ : stdout);
 
 		// Receive and process a piece of data from USB
 		int res = libusb_bulk_transfer(handle, 0x83, (unsigned char *)&usb_buf, BUF_SIZE, &usb_cnt, 10000);
@@ -515,7 +574,7 @@ int main(int argc, char *argv[])
 
 		for (;;)
 		{
-			res = packet_handler(&recv_buf[0], recv_cnt, keep_original_fcs, file);
+			res = packet_handler(&recv_buf[0], recv_cnt, prg_options.keep_original_fcs, file);
 			if (res < 0)
 				break;
 			recv_cnt -= res;
