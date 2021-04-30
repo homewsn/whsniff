@@ -261,7 +261,7 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 		libusb_get_device_descriptor(device, &t_desc);
 		if (t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
 		{
-			fprintf(stderr, "Found device %04x:%04x (bcdDevice: %04x) on Bus %03d, Device %03d\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice, bus_number, device_address);
+			fprintf(stderr, "Found device %04x:%04x (bcdDevice: %04x)\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice);
 
 			res = libusb_open(device, &handle);
 			if (res != 0)
