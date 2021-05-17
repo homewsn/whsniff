@@ -114,7 +114,7 @@ $ ssh root@192.168.1.202 "whsniff -c 18" | wireshark -k -i -
 where `192.168.1.202` is an IP address of the computer where dongle is connected and `18` is a channel number.
 * For Windows install PuTTY with extension `plink.exe` from [PuTTY Download Page](http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html), then open a command prompt window and enter the following command:
 ```sh
-> "C:\Program Files\PuTTY\plink.exe" -ssh -pw password root@192.168.1.202 whsniff -c 18 | "C:\Program Files\Wireshark\wireshark.exe" -k -i -
+> "C:\Program Files\PuTTY\plink.exe" -batch -ssh -pw password root@192.168.1.202 whsniff -c 18 | "C:\Program Files\Wireshark\wireshark.exe" -k -i -
 ```
 where `password` is a root password, `192.168.1.202` is an IP address of the computer where dongle is connected and `18` is a channel number.
 
