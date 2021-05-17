@@ -2,8 +2,8 @@
 * Copyright (c) 2015-2020 Vladimir Alemasov
 * All rights reserved
 *
-* This program and the accompanying materials are distributed under 
-* the terms of GNU General Public License version 2 
+* This program and the accompanying materials are distributed under
+* the terms of GNU General Public License version 2
 * as published by the Free Software Foundation.
 *
 * This program is distributed in the hope that it will be useful,
@@ -80,6 +80,23 @@ typedef struct usb_tick_header
 	uint8_t tick;				// tick counter
 } usb_tick_header_type;
 
+typedef struct usb_sniffing_device {
+	libusb_device_handle *handle;
+	uint8_t bus_number;
+	uint8_t device_address;
+	uint8_t channel;
+} usb_sniffing_device_type;
+
+typedef struct prg_options {
+	uint8_t restart_hourly;
+	uint8_t restart_daily;
+	uint8_t channel;
+	uint8_t keep_original_fcs;
+	uint8_t dump_to_file;
+	uint8_t specific_device;
+	uint8_t bus_num, dev_num;
+} prg_options_type;
+
 #pragma pack(pop)
 
 static const pcap_hdr_t pcap_hdr = {
@@ -92,8 +109,26 @@ static const pcap_hdr_t pcap_hdr = {
 	.network = 195				// IEEE 802.15.4
 };
 
+/* variable used to flag when a signal was received */
 static volatile unsigned int signal_exit = 0;
 
+static prg_options_type prg_options = {
+	.restart_daily = 0,
+	.restart_hourly = 0,
+	.channel = 0,
+	.keep_original_fcs = 0,
+	.dump_to_file = 0,
+	.specific_device = 0,
+	.bus_num = 0,
+	.dev_num = 0
+};
+
+static usb_sniffing_device_type usb_sniffing_device = {
+	.handle = NULL,
+	.bus_number = 0,
+	.device_address = 0,
+	.channel = 0
+};
 //--------------------------------------------
 static uint16_t update_crc_ccitt(uint16_t crc, uint8_t c);
 static uint16_t ieee802154_crc16(uint8_t *tvb, uint32_t offset, uint32_t len);
@@ -107,8 +142,6 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 	usb_tick_header_type *usb_tick_header;
 	pcaprec_hdr_t pcaprec_hdr;
 	uint16_t usb_len;
-	uint32_t le_ts;
-	uint32_t timestamp;
 	static time_t timestamp_epoch;
 	static uint64_t timestamp_offset;
 	static uint64_t timestamp_tick;
@@ -201,7 +234,7 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 		default:
 			break;
 	}
-		
+
 	return usb_len + sizeof(usb_header_type);
 }
 
@@ -214,30 +247,37 @@ void signal_handler(int sig)
 //--------------------------------------------
 void print_usage()
 {
-    printf("Usage: whsniff -c <channel> [-k] [-f] [-h] [-d]\n");
+    printf("Usage: whsniff -c <channel> [-s <bus>:<dev>] [-k] [-f] [-h] [-d] [-l]\n");
     printf("\n");
     printf("Where\n");
     printf("\t-c <channel> - Zigbee channel number (11 to 26)\n");
+    printf("\t-s <bus>:<dev> - attach to specific device Bus:Device as listed in lsusb\n");
     printf("\t-k - keep the original FCS sent by the CC2531\n");
     printf("\t-f - dump to file instead of stdout (handy for long sniffs with -h/-d options)\n");
     printf("\t-h - start a new dump file evey hour (used with -f)\n");
     printf("\t-d - start a new dump file evey day (used with -f)\n");
+    printf("\t-l - list the recognized devices\n");
 }
 
 
-//--------------------------------------------
-libusb_device_handle * init_usb_sniffer(uint8_t channel)
+/* Initialises the USB sniffer device
+ * @param specific_device flag to indicate if a specific device should be used. Otherwise, first found.
+ * @param snif_dev the usb_sniffing_device used to pull parameters for initialisation
+ * @return the function execution status 
+ */
+int8_t init_usb_sniffer(uint8_t specific_device, usb_sniffing_device_type *snif_dev)
 {
 	int res;
 	libusb_device_handle *handle;
-	libusb_device *dev;
+	libusb_device *usb_device;
+	uint8_t bus_number, device_address;
 	static unsigned char usb_buf[BUF_SIZE];
 
 	res = libusb_init(NULL);
 	if (res < 0)
 	{
-		printf("ERROR: Could not initialize libusb.\n");
-		return NULL;
+		fprintf(stderr, "ERROR: Could not initialize libusb: %s\n",libusb_error_name(res));
+		return res;
 	}
 #if LIBUSB_API_VERSION >= 0x01000106
 	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 3);
@@ -249,17 +289,33 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 	int found_device = 0;
 	libusb_device **list = NULL;
 	ssize_t count = libusb_get_device_list(NULL, &list);
+
+	// cycle through all USB devices to find the first CC2531 or the requested one
 	for (size_t idx = 0; idx < count; ++idx)
 	{
-		libusb_device *device = list[idx];
+		usb_device = list[idx];
 		struct libusb_device_descriptor t_desc;
-		libusb_get_device_descriptor(device, &t_desc);
-		if(t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
+		libusb_get_device_descriptor(usb_device, &t_desc);
+		bus_number = libusb_get_bus_number(usb_device);
+		device_address = libusb_get_device_address(usb_device);
+
+		if (t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae &&	// is it a TI CC2531 device
+			 ( (specific_device == 0)		// No specific device requested, take first one
+				||
+			   (specific_device == 1 		// Only interested in a specific CC2531
+			   		&& bus_number == snif_dev->bus_number
+			   		&& device_address == snif_dev->device_address )
+			 )
+		   )
 		{
-			// printf("Found device %04x:%04x (bcdDevice: %04x)\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice);
-			if(libusb_open(device, &handle) != 0)
+			snif_dev->bus_number = bus_number;
+			snif_dev->device_address = device_address;
+			fprintf(stderr, "Found device %04x:%04x (bcdDevice: %04x) on Bus %03d, Device %03d\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice, bus_number, device_address);
+
+			res = libusb_open(usb_device, &handle);
+			if (res != 0)
 			{
-				fprintf(stderr, "--> unable to open device.\n");
+				fprintf(stderr, "--> unable to open device: %s\n",libusb_error_name(res));
 				continue;
 			}
 			if (handle == NULL)
@@ -267,13 +323,14 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 				fprintf(stderr, "ERROR: Could not open CC2531 USB Dongle with sniffer firmware. Not found or not accessible.\n");
 				continue;
 			}
+			usb_sniffing_device.handle = handle;
 
 			if (libusb_kernel_driver_active(handle, 0))
 			{
 				res = libusb_detach_kernel_driver(handle, 0);
 				if (res < 0)
 				{
-					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle.\n");
+					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle: %s\n", libusb_error_name(res));
 					libusb_close(handle);
 					continue;
 				}
@@ -282,14 +339,14 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 			res = libusb_set_configuration(handle, 1);
 			if (res < 0)
 			{
-				fprintf(stderr, "--> unable to set configuration for device.\n");
+				fprintf(stderr, "--> unable to set configuration for device: %s\n", libusb_error_name(res));
 				libusb_close(handle);
 				continue;
 			}
 			res = libusb_claim_interface(handle, 0);
 			if (res < 0)
 			{
-				fprintf(stderr, "--> unable to claim interface for device.\n");
+				fprintf(stderr, "--> unable to claim interface for device: %s\n",libusb_error_name(res));
 				libusb_close(handle);
 				continue;
 			}
@@ -298,10 +355,10 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 		}
 	}
 	libusb_free_device_list(list, count);
-	if(!found_device)
+	if (!found_device)
 	{
-		printf("ERROR: No working device found.\n");
-		return NULL;
+		fprintf(stderr, "ERROR: No working device found.\n");
+		return -1;
 	}
 
 
@@ -321,7 +378,7 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 	res = libusb_control_transfer(handle, 0x40, 201, 0, 0, NULL, 0, TIMEOUT);
 
 	// set channel command
-	usb_buf[0] = channel;
+	usb_buf[0] = snif_dev->channel;
 	res = libusb_control_transfer(handle, 0x40, 210, 0, 0, (unsigned char *)&usb_buf, 1, TIMEOUT);
 	usb_buf[0] = 0x00;
 	res = libusb_control_transfer(handle, 0x40, 210, 0, 1, (unsigned char *)&usb_buf, 1, TIMEOUT);
@@ -329,10 +386,12 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 	// start sniffing
 	res = libusb_control_transfer(handle, 0x40, 208, 0, 0, NULL, 0, TIMEOUT);
 
-	return handle;
+	return 0;
 }
 
-//--------------------------------------------
+/* closes the USB sniffing device previously opened, with appropriate commands sent to device. 
+ * @param handle pointer to the usb_device
+ */
 void close_usb_sniffer(libusb_device_handle *handle)
 {
 	int res;
@@ -344,12 +403,55 @@ void close_usb_sniffer(libusb_device_handle *handle)
 
 	// clearing
 	res = libusb_release_interface(handle, 0);
+	
+	//dummy stmt to remove warning unsused-but-set
+	res+=0;
+	
 	libusb_close(handle);
 	libusb_exit(NULL);
 }
 
+/* lists all the USB devices, similarly as lsusb, in order to attach to a specific device
+ */
+void list_devices()
+{
+	int res;
+	// USB device identifier used by lsusb command
+	uint8_t bus_number, device_address;
+
+	res = libusb_init(NULL);
+	if (res < 0)
+	{
+		fprintf(stderr, "ERROR: Could not initialize libusb: %s\n", libusb_error_name(res));
+		return;
+	}
+
+
+	int found_device = 0;
+	libusb_device **list = NULL;
+	ssize_t count = libusb_get_device_list(NULL, &list);
+	for (size_t idx = 0; idx < count; ++idx)
+	{
+		libusb_device *device = list[idx];
+		struct libusb_device_descriptor t_desc;
+		libusb_get_device_descriptor(device, &t_desc);
+		bus_number = libusb_get_bus_number(device);
+		device_address = libusb_get_device_address(device);
+
+		if (t_desc.idVendor == 0x0451 && t_desc.idProduct == 0x16ae)
+		{
+			fprintf(stdout, "Found device %04x:%04x (bcdDevice: %04x) on Bus %03d, Device %03d\n", t_desc.idVendor, t_desc.idProduct, t_desc.bcdDevice, bus_number, device_address);
+			found_device = 1;
+		}
+	}
+
+	if (!found_device)
+		fprintf(stderr, "ERROR: No working device found.\n");
+
+}
+
 //--------------------------------------------
-FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t restart_daily)
+FILE * restart_pcap_file(FILE * prev_file)
 {
 	static int last_hour = -1;
 	static int last_day = -1;
@@ -358,9 +460,9 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 	FILE * file = prev_file;
 
 	// print PCAP header to stdout only once
-	if(file == stdout)
+	if (file == stdout)
 	{
-		if(!stdout_header_written)
+		if (!stdout_header_written)
 		{
 			// Write PCAP header
 			fwrite(&pcap_hdr, sizeof(pcap_hdr), 1, file);
@@ -368,7 +470,7 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 
 			stdout_header_written = 1;
 		}
-		
+
 		return file;
 	}
 
@@ -376,11 +478,11 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 	struct tm tm = *localtime(&t);
 
 	// No need to restart if hour has not yet changed
-	if(restart_hourly && last_hour == tm.tm_hour)
+	if (prg_options.restart_hourly && last_hour == tm.tm_hour)
 		return file;
 
 	// No need to restart if day has not yet changed
-	if(restart_daily && last_day == tm.tm_mday)
+	if (prg_options.restart_daily && last_day == tm.tm_mday)
 		return file;
 
 	// Store last hour/day
@@ -388,12 +490,15 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 	last_day = tm.tm_mday;
 
 	// Close previous file
-	if(file)
+	if (file)
 		fclose(file);
 
 	// ... and open a new one
 	char filename[100];
-	sprintf(filename, "whsniff-%d-%02d-%02d-%02d-%02d-%02d.pcap", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	sprintf(filename, "whsniff_B%03d-D%03d_%04d-%02d-%02d_%02d-%02d-%02d.pcap", 
+		usb_sniffing_device.bus_number, usb_sniffing_device.device_address, 
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, 
+		tm.tm_hour, tm.tm_min, tm.tm_sec);
 
 	fprintf(stderr, "Sniffing to %s\n", filename);
 	file = fopen(filename, "wb");
@@ -408,12 +513,9 @@ FILE * restart_pcap_file(FILE * prev_file, uint8_t restart_hourly, uint8_t resta
 //--------------------------------------------
 int main(int argc, char *argv[])
 {
-	uint8_t channel = 0;
-	uint8_t keep_original_fcs = 0;
-	uint8_t dump_to_file = 0;
-	uint8_t restart_hourly = 0;
-	uint8_t restart_daily = 0;
+
 	int option;
+
 	static unsigned char usb_buf[BUF_SIZE];
 	static int usb_cnt;
 	static unsigned char recv_buf[2 * BUF_SIZE];
@@ -429,53 +531,79 @@ int main(int argc, char *argv[])
 	signal(SIGPIPE, signal_handler);
 
 	option = 0;
-	while ((option = getopt(argc, argv, "c:kfhd")) != -1)
+	while ((option = getopt(argc, argv, "c:s:kfhdl")) != -1)
 	{
 		switch (option)
 		{
 			case 'c':
-				channel = (uint8_t)atoi(optarg);
-				if (channel < 11 || channel > 26)
+				prg_options.channel = (uint8_t)atoi(optarg);
+				if (prg_options.channel < 11 || prg_options.channel > 26)
 				{
-					
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case 's':
+				prg_options.specific_device = 1;
+
+				// Option parsing taken from lsusb source and updated to only accept bus:dev format
+				char *cp = strchr(optarg, ':');
+				if (cp) {
+					*cp++ = 0;
+					if (*optarg)
+						prg_options.bus_num = strtoul(optarg, NULL, 10);
+					if (*cp)
+						prg_options.dev_num = strtoul(cp, NULL, 10);
+				} 
+				else {
+					print_usage();
 					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'k':
-				keep_original_fcs = 1;
+				prg_options.keep_original_fcs = 1;
 				break;
 			case 'f':
-				dump_to_file = 1;
+				prg_options.dump_to_file = 1;
 				break;
 			case 'h':
-				restart_hourly = 1;
+				prg_options.restart_hourly = 1;
 				break;
 			case 'd':
-				restart_daily = 1;
+				prg_options.restart_daily = 1;
 				break;
+			case 'l':
+				list_devices();
+				exit(EXIT_SUCCESS);
 			default:
 				print_usage();
 				exit(EXIT_FAILURE);
 		}
 	}
 	// check the mandatory options
-	if (!channel)
+	if (!prg_options.channel)
 	{
 		print_usage();
 		exit(EXIT_FAILURE);
 	}
 
-	libusb_device_handle *handle = init_usb_sniffer(channel);
-	if(NULL == handle)
+	usb_sniffing_device.channel = prg_options.channel;
+	usb_sniffing_device.bus_number = prg_options.bus_num;
+	usb_sniffing_device.device_address = prg_options.dev_num;
+
+	init_usb_sniffer(prg_options.specific_device, &usb_sniffing_device);
+
+	libusb_device_handle *handle = usb_sniffing_device.handle;
+	if (NULL == handle)
 	{
 		printf("Cannot initialize USB sniffer device\n");
 		exit(EXIT_FAILURE);
 	}
 
+	// Continously captures packets until interruped by a signal
 	while (!signal_exit)
 	{
 		// restart new PCAP file (if needed)
-		file = restart_pcap_file(dump_to_file ? file /*Open new file*/ : stdout, restart_hourly, restart_daily);
+		file = restart_pcap_file(prg_options.dump_to_file ? file /*Open new file*/ : stdout);
 
 		// Receive and process a piece of data from USB
 		int res = libusb_bulk_transfer(handle, 0x83, (unsigned char *)&usb_buf, BUF_SIZE, &usb_cnt, 10000);
@@ -483,7 +611,7 @@ int main(int argc, char *argv[])
 		if (usb_cnt + recv_cnt > 2 * BUF_SIZE)
 		{
 			// overflow error
-			printf("%s\n", "ERROR: Buffer overflow.\n");
+			fprintf(stderr,"ERROR: Buffer overflow.\n");
 			break;
 		}
 		if (res < 0)
@@ -491,7 +619,7 @@ int main(int argc, char *argv[])
 			if (res == LIBUSB_ERROR_TIMEOUT)
 				continue;
 			// libusb error
-			printf("ERROR: %s.\n", libusb_error_name(res));
+			fprintf(stderr,"ERROR: %s.\n", libusb_error_name(res));
 			break;
 		}
 
@@ -500,7 +628,7 @@ int main(int argc, char *argv[])
 
 		for (;;)
 		{
-			res = packet_handler(&recv_buf[0], recv_cnt, keep_original_fcs, file);
+			res = packet_handler(&recv_buf[0], recv_cnt, prg_options.keep_original_fcs, file);
 			if (res < 0)
 				break;
 			recv_cnt -= res;
@@ -511,7 +639,7 @@ int main(int argc, char *argv[])
 	}
 
 	close_usb_sniffer(handle);
-	if(file)
+	if (file)
 		fclose(file);
 
 	exit(EXIT_SUCCESS);
@@ -605,7 +733,7 @@ static uint16_t update_crc_ccitt(uint16_t crc, uint8_t c)
 	tmp = (crc >> 8) ^ short_c;
 	crc = (crc << 8) ^ crc_tabccitt[tmp];
 	return crc;
-} 
+}
 
 //-------------------------------------------------------------------------
 // Computes the 16-bit CRC according to the CCITT/ITU-T Standard
