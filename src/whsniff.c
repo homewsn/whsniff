@@ -145,7 +145,7 @@ static int packet_handler(unsigned char *buf, int cnt, uint8_t keep_original_fcs
 			// CC2531EMK sniffer software: 32-bit value must be divided by 32
 
 			// host timestamp in microseconds
-			timestamp_us = (timestamp_tick + le32toh(usb_data_header->le_timestamp)) / 32;
+			timestamp_us = (timestamp_tick + le64toh(usb_data_header->le_timestamp)) / 32;
 
 			if (!timestamp_offset)
 			{
