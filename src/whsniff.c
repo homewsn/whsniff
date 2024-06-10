@@ -434,7 +434,11 @@ int main(int argc, char *argv[])
 		switch (option)
 		{
 			case 'c':
-				channel = (uint8_t)atoi(optarg);
+				if (strlen(optarg) >= 3 && optarg[0] == '0' && (optarg[1] == 'x' || optarg[1] == 'X')) {
+					channel = (uint8_t)strtol(optarg, NULL, 16);
+				} else {
+					channel = (uint8_t)atoi(optarg);
+				}
 				if (channel < 11 || channel > 26)
 				{
 					
