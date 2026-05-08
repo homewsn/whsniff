@@ -271,7 +271,8 @@ libusb_device_handle * init_usb_sniffer(uint8_t channel)
 			if (libusb_kernel_driver_active(handle, 0))
 			{
 				res = libusb_detach_kernel_driver(handle, 0);
-				if (res < 0)
+				// If it's not supported (like on OpenBSD), just keep going!
+				if (res < 0 && res != LIBUSB_ERROR_NOT_SUPPORTED)
 				{
 					fprintf(stderr, "ERROR: Could not detach kernel driver from CC2531 USB Dongle.\n");
 					libusb_close(handle);
