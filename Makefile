@@ -30,7 +30,7 @@ endif
 
 # Installation directories by convention
 # http://www.gnu.org/prep/standards/html_node/Directory-Variables.html
-PREFIX = /usr/local
+PREFIX ?= /usr/local
 EXEC_PREFIX = $(PREFIX)
 BINDIR = $(EXEC_PREFIX)/bin
 SYSCONFDIR = $(PREFIX)/etc
